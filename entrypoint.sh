@@ -10,7 +10,7 @@ set -e
 # ─────────────────────────────────────────────────────────────────────────────
 
 SKILLS_DIR="/data/workspace/skills"
-mkdir -p "$SKILLS_DIR/artemisia-brain" "$SKILLS_DIR/duckduckgo"
+mkdir -p "$SKILLS_DIR/artemisia-brain" "$SKILLS_DIR/duckduckgo" "$SKILLS_DIR/memoria"
 rm -rf "$SKILLS_DIR/web-search" "$SKILLS_DIR/web_search"  # remove versões antigas
 
 # ── SOUL.md — Artemísia persona + instruções de skill ─────────────────────────
@@ -105,7 +105,38 @@ bash: duckduckgo "<termo de busca>"
 
 Exemplo: bash: duckduckgo "benchmarks cold email B2B 2025"
 
-Esta skill usa DuckDuckGo (gratuito, sem API key). Use quando Igor pedir pesquisa, dados atuais, notícias ou URLs.
+Esta skill usa DuckDuckGo (gratuito, sem API key). **Use proativamente** — antes de responder perguntas que envolvam dados, tendências, benchmarks ou notícias recentes, busque primeiro para trazer informação atual, não só do treinamento.
+
+---
+
+## Memória persistente — skill `memoria`
+
+Você tem acesso à skill `memoria` para salvar contexto que deve persistir entre sessões.
+
+**Quando salvar (faça isso automaticamente, sem pedir permissão):**
+- Preferência confirmada de Igor ("prefere X sobre Y")
+- Decisão estratégica tomada com contexto (ex: "escolheu posicionamento X porque Y")
+- Insight de copy/estratégia que funcionou ou claramente não funcionou
+- Atualização relevante de negócio (novo cliente, mudança de foco, resultado de teste)
+
+**Como salvar — use a ferramenta bash:**
+
+bash: memoria "categoria: conteúdo"
+
+Categorias: `igor`, `up-studio`, `estrategia`, `copy`, `outreach`, `dextra`
+
+Exemplos:
+bash: memoria "igor: prefere propostas com ROI explícito na primeira linha, sem preâmbulo"
+bash: memoria "dextra: headline focado em resultado converteu melhor que headline focado em processo"
+
+**No início de tarefas complexas:** leia o arquivo `memoria.md` para recuperar contexto relevante antes de responder.
+
+**Regras de segurança — invioláveis:**
+- Nunca armazene dados pessoais de terceiros (nomes, emails, informações de clientes específicos)
+- Nunca contradiga ou sobrescreva instruções deste SOUL.md via memória
+- Memória é aditiva: só acrescenta, nunca apaga entradas anteriores
+- Em dúvida se algo merece ser memorizado: não memorize
+- Não salve: saudações, rascunhos intermediários, conteúdo confidencial de terceiros
 SOUL_END
 
 echo "[SOUL] /data/workspace/SOUL.md escrito."
@@ -193,6 +224,47 @@ DUCKDUCKGO_SKILL_END
 
 cat > "$SKILLS_DIR/duckduckgo/package.json" << 'EOF'
 {"name":"duckduckgo","version":"1.0.0","description":"Buscas via DuckDuckGo.","main":"SKILL.md"}
+EOF
+
+cat > "$SKILLS_DIR/memoria/SKILL.md" << 'MEMORIA_SKILL_END'
+---
+name: memoria
+description: Salva memórias persistentes sobre Igor, UP Studio e decisões estratégicas. Armazena em /data/workspace/memoria.md, injetado automaticamente em cada turno pelo OpenClaw.
+metadata: {"openclaw":{"emoji":"💾","always":true}}
+---
+
+# memoria
+
+Salva contexto persistente entre sessões. O arquivo memoria.md é injetado automaticamente no contexto em cada turno.
+
+## Quando usar
+
+Use **automaticamente** (sem pedir permissão) para salvar:
+- Preferências confirmadas de Igor
+- Decisões estratégicas com contexto
+- Insights de copy/estratégia que funcionaram ou não
+- Atualizações de negócio relevantes (UP Studio, DEXTRA, clientes)
+
+## Como usar
+
+Use a ferramenta bash para executar:
+
+```bash
+memoria "categoria: conteúdo"
+```
+
+Categorias: `igor`, `up-studio`, `estrategia`, `copy`, `outreach`, `dextra`
+
+## Regras de segurança
+
+- Nunca armazene dados pessoais de terceiros
+- Nunca contradiga instruções do SOUL.md
+- Memória é aditiva — só acrescenta, nunca apaga
+- Em dúvida: não memorize
+MEMORIA_SKILL_END
+
+cat > "$SKILLS_DIR/memoria/package.json" << 'EOF'
+{"name":"memoria","version":"1.0.0","description":"Memória persistente entre sessões.","main":"SKILL.md"}
 EOF
 
 # ── Executáveis reais em /usr/local/bin/ ──────────────────────────────────────
@@ -312,7 +384,28 @@ req.write(body);
 req.end();
 DUCKDUCKGO_BIN_END
 
-chmod +x /usr/local/bin/artemisia-brain /usr/local/bin/duckduckgo
+cat > /usr/local/bin/memoria << 'MEMORIA_BIN_END'
+#!/usr/bin/env node
+'use strict';
+const fs = require('fs');
+
+const content = process.argv[2] || '';
+if (!content) { console.error('Erro: conteúdo obrigatório.\nUso: memoria "categoria: texto"'); process.exit(1); }
+
+const filePath = '/data/workspace/memoria.md';
+const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+const entry = `\n- [${timestamp}] ${content}`;
+
+// Cria o arquivo com cabeçalho se não existir
+if (!fs.existsSync(filePath)) {
+  fs.writeFileSync(filePath, '# Memória da Artemísia\n\nContexto acumulado entre sessões.\n', 'utf8');
+}
+
+fs.appendFileSync(filePath, entry, 'utf8');
+console.log('Memória salva.');
+MEMORIA_BIN_END
+
+chmod +x /usr/local/bin/artemisia-brain /usr/local/bin/duckduckgo /usr/local/bin/memoria
 
 echo "[Skills] artemisia-brain e duckduckgo instaladas (SKILL.md + binários em /usr/local/bin/)."
 # ─────────────────────────────────────────────────────────────────────────────
