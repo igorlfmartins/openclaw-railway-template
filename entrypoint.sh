@@ -9,7 +9,7 @@ cat > "$SKILLS_DIR/artemisia-brain/SKILL.md" << 'ARTEMISIA_SKILL_END'
 ---
 name: artemisia-brain
 description: Consulta o backend Agno no Railway — 29 especialistas, knowledge base vetorial e memória de sessão. Use quando a pergunta exigir expertise técnica profunda.
-metadata: {"openclaw":{"emoji":"🧠","requires":{"env":["AGNO_BASE_URL","AGNO_TOKEN"]},"primaryEnv":"AGNO_TOKEN"}}
+metadata: {"openclaw":{"emoji":"🧠"}}
 ---
 
 # artemisia-brain
