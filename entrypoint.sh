@@ -18,27 +18,33 @@ rm -rf "$SKILLS_DIR/web-search"  # remove versão antiga com hífen
 cat > "$SKILLS_DIR/artemisia-brain/SKILL.md" << 'ARTEMISIA_SKILL_END'
 ---
 name: artemisia-brain
-description: Consulta o backend Agno no Railway — 29 especialistas, knowledge base vetorial e memória de sessão. Use quando a pergunta exigir expertise técnica profunda.
-metadata: {"openclaw":{"emoji":"🧠"}}
+description: Consulta o backend Agno no Railway com 29 especialistas em marketing, vendas, copy, estratégia, finanças e automação. Use para qualquer pergunta técnica de negócio.
+metadata: {"openclaw":{"emoji":"🧠","requires":{"bins":["artemisia-brain"]}}}
 ---
 
 # artemisia-brain
 
-Chama o Agno (Railway) e retorna a resposta de um dos 29 especialistas da Artemísia.
+Conecta ao Agno (Railway) e retorna respostas de especialistas em negócio.
 
-## Parâmetros
+## Quando usar
 
-- `$1` — mensagem do usuário (obrigatória)
-- `$2` — specialist slug (opcional)
-- `$3` — thread_id (opcional; padrão: `openclaw-default`)
+Use **automaticamente** para qualquer pergunta sobre marketing, vendas, copy, estratégia, finanças, outreach, cold email, landing page, automação, marca, produto ou conteúdo.
 
-## Execução
+## Como usar
 
-```js
-// executado via /usr/local/bin/artemisia-brain
+```bash
+artemisia-brain "<mensagem completa do usuário>"
 ```
 
-## Especialistas disponíveis
+Exemplos:
+
+```bash
+artemisia-brain "como estruturar uma sequência de cold email B2B para CMOs?"
+artemisia-brain "crie um headline para landing page de SaaS"
+artemisia-brain "estratégia de go-to-market para produto de R$497"
+```
+
+## Especialistas disponíveis (roteamento automático)
 
 estrategista_mercado, mentor_estrategia, destruidor_ilusoes, tech_advisor,
 estrategista_financeiro, financeiro, consultor_marketing, consultor_marca,
@@ -53,23 +59,33 @@ EOF
 cat > "$SKILLS_DIR/web_search/SKILL.md" << 'WEB_SEARCH_SKILL_END'
 ---
 name: web_search
-description: Buscas na internet usando DuckDuckGo. Retorna títulos e URLs dos resultados.
-metadata: {"openclaw":{"emoji":"🔍"}}
+description: Busca na internet via DuckDuckGo. Sem dependências externas, sem API key. Use para pesquisar informações atuais, URLs, notícias e documentação.
+metadata: {"openclaw":{"emoji":"🔍","requires":{"bins":["web_search"]}}}
 ---
 
 # web_search
 
-Busca na internet usando DuckDuckGo via Node.js (sem dependências externas).
+Busca no DuckDuckGo. Gratuito, sem API key necessária.
 
-## Parâmetros
+## Quando usar
 
-- `$1` — termo de busca (obrigatório)
+Use para pesquisar informações atuais na internet, URLs, notícias, documentação ou qualquer coisa que exija busca online em tempo real.
 
-## Execução
+## Como usar
 
-```js
-// executado via /usr/local/bin/web_search
+```bash
+web_search "<termo de busca>"
 ```
+
+Exemplos:
+
+```bash
+web_search "estratégia cold email B2B 2025"
+web_search "como usar n8n com webhook"
+web_search "benchmarks SaaS conversion rate landing page"
+```
+
+Retorna até 5 resultados com título e URL.
 WEB_SEARCH_SKILL_END
 
 cat > "$SKILLS_DIR/web_search/package.json" << 'EOF'
