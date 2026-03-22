@@ -1,11 +1,19 @@
 #!/bin/bash
 set -e
 
-# ── Install Artemísia skills (runs as root, before chown) ────────────────────
+# ── Install Artemísia skills ──────────────────────────────────────────────────
+# 1. SKILL.md files → gateway recognizes the skills (shows to AI)
+# 2. Executables in /usr/local/bin/ → sh can find them when OpenClaw calls them
+#
+# OpenClaw executes skills as shell commands: sh -c "<skill-name> <args>"
+# Without a real executable in PATH, it fails with "not found".
+# ─────────────────────────────────────────────────────────────────────────────
+
 SKILLS_DIR="/data/workspace/skills"
 mkdir -p "$SKILLS_DIR/artemisia-brain" "$SKILLS_DIR/web_search"
-# Remover versão antiga com hífen se existir
-rm -rf "$SKILLS_DIR/web-search"
+rm -rf "$SKILLS_DIR/web-search"  # remove versão antiga com hífen
+
+# ── SKILL.md files (para o gateway) ──────────────────────────────────────────
 
 cat > "$SKILLS_DIR/artemisia-brain/SKILL.md" << 'ARTEMISIA_SKILL_END'
 ---
@@ -18,29 +26,63 @@ metadata: {"openclaw":{"emoji":"🧠"}}
 
 Chama o Agno (Railway) e retorna a resposta de um dos 29 especialistas da Artemísia.
 
-## Quando usar
-
-- A pergunta envolve expertise técnica específica (marketing, vendas, finanças, copy, automação, marca, etc.)
-- Você precisa consultar a base de conhecimento (livros, documentos do Igor, histórico)
-- O usuário precisa de output profissional (texto, copy, análise, estratégia)
-
-## Quando NÃO usar
-
-- Saudações e conversa casual ("Oi", "Tudo bem?")
-- Perguntas sobre você mesma ou suas capacidades
-- Perguntas simples sem expertise técnica
-- Check-ins sem tema definido
-
 ## Parâmetros
 
 - `$1` — mensagem do usuário (obrigatória)
-- `$2` — specialist slug (opcional; deixar vazio para roteamento automático)
+- `$2` — specialist slug (opcional)
 - `$3` — thread_id (opcional; padrão: `openclaw-default`)
 
 ## Execução
 
 ```js
+// executado via /usr/local/bin/artemisia-brain
+```
+
+## Especialistas disponíveis
+
+estrategista_mercado, mentor_estrategia, destruidor_ilusoes, tech_advisor,
+estrategista_financeiro, financeiro, consultor_marketing, consultor_marca,
+naming, growth, conteudo, linkedin, copywriter_ads, copywriter_vendas,
+copywriter_social, consultor_vendas, outreach, cold_mail, landing_page, n8n
+ARTEMISIA_SKILL_END
+
+cat > "$SKILLS_DIR/artemisia-brain/package.json" << 'EOF'
+{"name":"artemisia-brain","version":"1.0.0","description":"Consulta o backend Agno — 29 especialistas.","main":"SKILL.md"}
+EOF
+
+cat > "$SKILLS_DIR/web_search/SKILL.md" << 'WEB_SEARCH_SKILL_END'
+---
+name: web_search
+description: Buscas na internet usando DuckDuckGo. Retorna títulos e URLs dos resultados.
+metadata: {"openclaw":{"emoji":"🔍"}}
+---
+
+# web_search
+
+Busca na internet usando DuckDuckGo via Node.js (sem dependências externas).
+
+## Parâmetros
+
+- `$1` — termo de busca (obrigatório)
+
+## Execução
+
+```js
+// executado via /usr/local/bin/web_search
+```
+WEB_SEARCH_SKILL_END
+
+cat > "$SKILLS_DIR/web_search/package.json" << 'EOF'
+{"name":"web_search","version":"1.0.0","description":"Buscas via DuckDuckGo.","main":"SKILL.md"}
+EOF
+
+# ── Executáveis reais em /usr/local/bin/ ──────────────────────────────────────
+# OpenClaw chama skills via: sh -c "<skill-name> <args>"
+# Precisa de um binário real no PATH.
+
+cat > /usr/local/bin/artemisia-brain << 'ARTEMISIA_BIN_END'
 #!/usr/bin/env node
+'use strict';
 const https = require('https');
 const http = require('http');
 const url = require('url');
@@ -87,108 +129,56 @@ req.on('error', e => { console.error('Erro:', e.message); process.exit(1); });
 req.setTimeout(90000, () => { req.destroy(); console.error('Timeout.'); process.exit(1); });
 req.write(body);
 req.end();
-```
+ARTEMISIA_BIN_END
 
-## Especialistas disponíveis (slug → área)
+cat > /usr/local/bin/web_search << 'WEB_SEARCH_BIN_END'
+#!/usr/bin/env node
+'use strict';
+const https = require('https');
 
-| Slug | Área |
-|------|------|
-| `estrategista_mercado` | Análise de mercado, tendências, posicionamento |
-| `mentor_estrategia` | Espelho radical, lógica de decisão |
-| `destruidor_ilusoes` | Stress-test de planos, vieses, risco |
-| `tech_advisor` | Stack, arquitetura, decisões tecnológicas |
-| `estrategista_financeiro` | DCF, M&A, valuation |
-| `financeiro` | Fluxo de caixa, gestão de capital |
-| `consultor_marketing` | Go-to-market, campanhas, CMO virtual |
-| `consultor_marca` | Branding, identidade, equity |
-| `naming` | Nomenclatura de produtos e marcas |
-| `growth` | Growth hacking, B2B SaaS, acquisition |
-| `conteudo` | Editorial, SEO, estratégia multi-canal |
-| `linkedin` | Ghostwriter LinkedIn, personal brand |
-| `copywriter_ads` | Anúncios, direct response, headlines |
-| `copywriter_vendas` | Copy B2B, propostas, follow-ups |
-| `copywriter_social` | Instagram, carrosséis, threads |
-| `consultor_vendas` | Vendas enterprise, fechamento |
-| `outreach` | Cold outreach B2B de alta conversão |
-| `cold_mail` | Cold email, sequências de prospecção |
-| `landing_page` | Landing pages, neuromarketing, CRO |
-| `n8n` | Automações n8n, integrações |
+const query = process.argv[2] || '';
+if (!query) { console.error('Erro: termo de busca obrigatório.'); process.exit(1); }
 
-## Variáveis de ambiente
+const encoded = encodeURIComponent(query);
+const path = `/?q=${encoded}&format=json`;
 
-| Variável | Descrição |
-|----------|-----------|
-| `AGNO_BASE_URL` | `https://agno-upstudio-production.up.railway.app` |
-| `AGNO_TOKEN` | Valor de `OPENCLAW_SECRET_TOKEN` no Railway |
-ARTEMISIA_SKILL_END
+const req = https.request({
+  hostname: 'duckduckgo.com',
+  path,
+  method: 'GET',
+  headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ArtemisiaBrowser/1.0)' },
+}, (res) => {
+  let data = '';
+  res.on('data', chunk => data += chunk);
+  res.on('end', () => {
+    try {
+      const json = JSON.parse(data);
+      const results = (json.Results || []).slice(0, 5);
+      if (results.length > 0) {
+        console.log(`Resultados para "${query}":\n`);
+        results.forEach((r, i) => {
+          console.log(`${i + 1}. ${r.Text || r.Result || ''}`);
+          if (r.FirstURL) console.log(`   ${r.FirstURL}`);
+          console.log('');
+        });
+      } else if (json.AbstractText) {
+        console.log(json.AbstractText);
+        if (json.AbstractURL) console.log(`Fonte: ${json.AbstractURL}`);
+      } else {
+        console.log(`Nenhum resultado encontrado para "${query}"`);
+      }
+    } catch (e) { console.error('Erro ao processar resposta:', e.message); process.exit(1); }
+  });
+});
 
-cat > "$SKILLS_DIR/artemisia-brain/package.json" << 'EOF'
-{"name":"artemisia-brain","version":"1.0.0","description":"Consulta o backend Agno no Railway — 29 especialistas.","main":"SKILL.md"}
-EOF
+req.on('error', e => { console.error('Erro:', e.message); process.exit(1); });
+req.setTimeout(15000, () => { req.destroy(); console.error('Timeout.'); process.exit(1); });
+req.end();
+WEB_SEARCH_BIN_END
 
-cat > "$SKILLS_DIR/web_search/SKILL.md" << 'WEB_SEARCH_SKILL_END'
----
-name: web_search
-description: Buscas na internet usando DuckDuckGo via curl (sem dependências). Retorna resultados com títulos e URLs.
-metadata: {"openclaw":{"emoji":"🔍"}}
----
+chmod +x /usr/local/bin/artemisia-brain /usr/local/bin/web_search
 
-# web_search
-
-Busca na internet usando DuckDuckGo. Funciona com curl (sem Node.js, sem Python).
-
-## Quando usar
-
-- Pesquisar informações atuais na internet
-- Encontrar URLs e documentação
-- Buscar notícias, tutoriais, guias
-- Qualquer coisa que exija acesso à web em tempo real
-
-## Parâmetros
-
-- `$1` — termo de busca (obrigatório)
-
-## Execução
-
-```bash
-#!/bin/bash
-
-query="${1}"
-
-if [ -z "$query" ]; then
-  echo "Erro: termo de busca obrigatório."
-  exit 1
-fi
-
-encoded=$(printf %s "$query" | jq -sRr @uri)
-
-response=$(curl -s "https://duckduckgo.com/?q=${encoded}&format=json" \
-  -H "User-Agent: Mozilla/5.0 (compatible; ArtemisiaBrowser/1.0)" \
-  --max-time 10)
-
-if echo "$response" | grep -q '"Results"'; then
-  echo "Resultados para \"$query\":"
-  echo ""
-  echo "$response" | jq -r '.Results[0:5][] |
-    "\(.Result // .Text)\n   \(.FirstURL // "N/A")\n"' 2>/dev/null || \
-  echo "Não foi possível processar os resultados"
-else
-  echo "Nenhum resultado encontrado para \"$query\""
-fi
-```
-
-## Exemplo
-
-```bash
-web_search "estratégia go-to-market SaaS B2B"
-```
-WEB_SEARCH_SKILL_END
-
-cat > "$SKILLS_DIR/web_search/package.json" << 'EOF'
-{"name":"web_search","version":"1.0.0","description":"Buscas via DuckDuckGo usando curl.","main":"SKILL.md"}
-EOF
-
-echo "[Skills] artemisia-brain e web-search instaladas."
+echo "[Skills] artemisia-brain e web_search instaladas (SKILL.md + binários em /usr/local/bin/)."
 # ─────────────────────────────────────────────────────────────────────────────
 
 chown -R openclaw:openclaw /data
