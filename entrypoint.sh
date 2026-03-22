@@ -3,7 +3,9 @@ set -e
 
 # ── Install Artemísia skills (runs as root, before chown) ────────────────────
 SKILLS_DIR="/data/workspace/skills"
-mkdir -p "$SKILLS_DIR/artemisia-brain" "$SKILLS_DIR/web-search"
+mkdir -p "$SKILLS_DIR/artemisia-brain" "$SKILLS_DIR/web_search"
+# Remover versão antiga com hífen se existir
+rm -rf "$SKILLS_DIR/web-search"
 
 cat > "$SKILLS_DIR/artemisia-brain/SKILL.md" << 'ARTEMISIA_SKILL_END'
 ---
@@ -124,16 +126,16 @@ cat > "$SKILLS_DIR/artemisia-brain/package.json" << 'EOF'
 {"name":"artemisia-brain","version":"1.0.0","description":"Consulta o backend Agno no Railway — 29 especialistas.","main":"SKILL.md"}
 EOF
 
-cat > "$SKILLS_DIR/web-search/SKILL.md" << 'WEB_SEARCH_SKILL_END'
+cat > "$SKILLS_DIR/web_search/SKILL.md" << 'WEB_SEARCH_SKILL_END'
 ---
-name: web-search
-description: Realiza buscas na internet usando DuckDuckGo sem depender de Python ou navegador. Retorna resultados com títulos, URLs e resumos.
+name: web_search
+description: Buscas na internet usando DuckDuckGo via curl (sem dependências). Retorna resultados com títulos e URLs.
 metadata: {"openclaw":{"emoji":"🔍"}}
 ---
 
-# web-search
+# web_search
 
-Busca na internet usando DuckDuckGo. Funciona em qualquer ambiente com curl ou wget.
+Busca na internet usando DuckDuckGo. Funciona com curl (sem Node.js, sem Python).
 
 ## Quando usar
 
@@ -148,93 +150,42 @@ Busca na internet usando DuckDuckGo. Funciona em qualquer ambiente com curl ou w
 
 ## Execução
 
-```js
-#!/usr/bin/env node
-const https = require('https');
-const url = require('url');
+```bash
+#!/bin/bash
 
-const query = process.argv[2] || '';
+query="${1}"
 
-if (!query) {
-  console.error('Erro: termo de busca obrigatório.');
-  process.exit(1);
-}
+if [ -z "$query" ]; then
+  echo "Erro: termo de busca obrigatório."
+  exit 1
+fi
 
-// Encode da query para URL
-const encoded = encodeURIComponent(query);
+encoded=$(printf %s "$query" | jq -sRr @uri)
 
-// URL da API DDG
-const ddgUrl = `https://duckduckgo.com/?q=${encoded}&format=json`;
+response=$(curl -s "https://duckduckgo.com/?q=${encoded}&format=json" \
+  -H "User-Agent: Mozilla/5.0 (compatible; ArtemisiaBrowser/1.0)" \
+  --max-time 10)
 
-const parsed = url.parse(ddgUrl);
-const req = https.request({
-  hostname: parsed.hostname,
-  port: parsed.port,
-  path: parsed.path,
-  method: 'GET',
-  headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; ArtemisiaBrowser/1.0)'
-  }
-}, (res) => {
-  let data = '';
-  res.on('data', chunk => data += chunk);
-  res.on('end', () => {
-    try {
-      const json = JSON.parse(data);
-
-      // Extrair resultados
-      const results = [];
-
-      if (json.Results && json.Results.length > 0) {
-        json.Results.forEach((result, idx) => {
-          if (idx < 5) { // Limitar a 5 resultados
-            results.push({
-              title: result.Result || result.Text,
-              url: result.FirstURL || '',
-              snippet: result.Text || ''
-            });
-          }
-        });
-      }
-
-      // Formatar saída
-      if (results.length > 0) {
-        console.log(`Resultados para "${query}":\n`);
-        results.forEach((r, idx) => {
-          console.log(`${idx + 1}. ${r.title}`);
-          if (r.url) console.log(`   URL: ${r.url}`);
-          if (r.snippet) console.log(`   ${r.snippet.substring(0, 150)}...`);
-          console.log('');
-        });
-      } else {
-        console.log(`Nenhum resultado encontrado para "${query}"`);
-      }
-    } catch (e) {
-      console.error('Erro ao processar resposta:', e.message);
-      process.exit(1);
-    }
-  });
-});
-
-req.on('error', e => {
-  console.error('Erro:', e.message);
-  process.exit(1);
-});
-
-req.end();
+if echo "$response" | grep -q '"Results"'; then
+  echo "Resultados para \"$query\":"
+  echo ""
+  echo "$response" | jq -r '.Results[0:5][] |
+    "\(.Result // .Text)\n   \(.FirstURL // "N/A")\n"' 2>/dev/null || \
+  echo "Não foi possível processar os resultados"
+else
+  echo "Nenhum resultado encontrado para \"$query\""
+fi
 ```
 
 ## Exemplo
 
 ```bash
-web-search "como instalar python no railway"
+web_search "estratégia go-to-market SaaS B2B"
 ```
-
-Retorna os 5 melhores resultados com títulos, URLs e resumos.
 WEB_SEARCH_SKILL_END
 
-cat > "$SKILLS_DIR/web-search/package.json" << 'EOF'
-{"name":"web-search","version":"1.0.0","description":"Realiza buscas na internet usando DuckDuckGo.","main":"SKILL.md"}
+cat > "$SKILLS_DIR/web_search/package.json" << 'EOF'
+{"name":"web_search","version":"1.0.0","description":"Buscas via DuckDuckGo usando curl.","main":"SKILL.md"}
 EOF
 
 echo "[Skills] artemisia-brain e web-search instaladas."
