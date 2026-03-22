@@ -258,66 +258,57 @@ const https = require('https');
 const query = process.argv[2] || '';
 if (!query) { console.error('Erro: termo de busca obrigatório.'); process.exit(1); }
 
-const encoded = encodeURIComponent(query);
-// api.duckduckgo.com = Instant Answer API (JSON); duckduckgo.com não retorna JSON
-const path = `/?q=${encoded}&format=json&no_html=1&skip_disambig=1`;
+// html.duckduckgo.com/html/ com POST retorna resultados web reais (testado: 10 resultados).
+// GET falha (retorna homepage). POST com form-encoded body funciona corretamente.
+const body = `q=${encodeURIComponent(query)}&b=&kl=wt-wt`;
 
 const req = https.request({
-  hostname: 'api.duckduckgo.com',
-  path,
-  method: 'GET',
+  hostname: 'html.duckduckgo.com',
+  path: '/html/',
+  method: 'POST',
   headers: {
-    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
-    'Accept': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'Content-Length': Buffer.byteLength(body),
+    'Accept': 'text/html',
   },
 }, (res) => {
   let data = '';
   res.on('data', chunk => data += chunk);
   res.on('end', () => {
-    try {
-      const json = JSON.parse(data);
-      const output = [];
-
-      // AbstractText: resposta direta (Wikipedia etc.)
-      if (json.AbstractText) {
-        output.push(`${json.AbstractText}`);
-        if (json.AbstractURL) output.push(`Fonte: ${json.AbstractURL}`);
-        output.push('');
+    const results = [];
+    const linkRe = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+    let m;
+    while ((m = linkRe.exec(data)) !== null && results.length < 5) {
+      let url = m[1];
+      const title = m[2].replace(/<[^>]+>/g, '')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+      // Decodifica /l/?uddg=URL se necessário
+      if (url.includes('uddg=')) {
+        const u = url.match(/[?&]uddg=([^&]+)/);
+        if (u) url = decodeURIComponent(u[1]);
       }
-
-      // Results: links diretos
-      (json.Results || []).slice(0, 3).forEach((r, i) => {
-        if (r.Text || r.FirstURL) {
-          output.push(`${i + 1}. ${r.Text || ''}`);
-          if (r.FirstURL) output.push(`   ${r.FirstURL}`);
-          output.push('');
-        }
+      if (title && url && (url.startsWith('http://') || url.startsWith('https://'))) {
+        results.push({ title, url });
+      }
+    }
+    if (results.length > 0) {
+      console.log(`Resultados para "${query}":\n`);
+      results.forEach((r, i) => {
+        console.log(`${i + 1}. ${r.title}`);
+        console.log(`   ${r.url}`);
+        console.log('');
       });
-
-      // RelatedTopics: tópicos relacionados (mais comuns para buscas gerais)
-      if (output.length === 0) {
-        const topics = (json.RelatedTopics || [])
-          .filter(r => r.Text && r.FirstURL)
-          .slice(0, 5);
-        topics.forEach((r, i) => {
-          output.push(`${i + 1}. ${r.Text}`);
-          output.push(`   ${r.FirstURL}`);
-          output.push('');
-        });
-      }
-
-      if (output.length > 0) {
-        console.log(`Resultados DuckDuckGo para "${query}":\n`);
-        console.log(output.join('\n'));
-      } else {
-        console.log(`Nenhum resultado encontrado para "${query}". Tente termos mais específicos ou em inglês.`);
-      }
-    } catch (e) { console.error('Erro ao processar resposta:', e.message); process.exit(1); }
+    } else {
+      console.log(`Nenhum resultado encontrado para "${query}".`);
+      console.log('Dica: tente em inglês ou com termos mais específicos.');
+    }
   });
 });
 
 req.on('error', e => { console.error('Erro:', e.message); process.exit(1); });
-req.setTimeout(15000, () => { req.destroy(); console.error('Timeout.'); process.exit(1); });
+req.setTimeout(20000, () => { req.destroy(); console.error('Timeout.'); process.exit(1); });
+req.write(body);
 req.end();
 DUCKDUCKGO_BIN_END
 
