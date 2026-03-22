@@ -104,7 +104,7 @@ cat > "$SKILLS_DIR/artemisia-brain/SKILL.md" << 'ARTEMISIA_SKILL_END'
 ---
 name: artemisia-brain
 description: Consulta o backend Agno no Railway com 29 especialistas em marketing, vendas, copy, estratégia, finanças e automação. Use para qualquer pergunta técnica de negócio.
-metadata: {"openclaw":{"emoji":"🧠","requires":{"bins":["artemisia-brain"]}}}
+metadata: {"openclaw":{"emoji":"🧠","always":true}}
 ---
 
 # artemisia-brain
@@ -149,7 +149,7 @@ cat > "$SKILLS_DIR/web_search/SKILL.md" << 'WEB_SEARCH_SKILL_END'
 ---
 name: web_search
 description: Busca na internet via DuckDuckGo. Sem dependências externas, sem API key. Use para pesquisar informações atuais, URLs, notícias e documentação.
-metadata: {"openclaw":{"emoji":"🔍","requires":{"bins":["web_search"]}}}
+metadata: {"openclaw":{"emoji":"🔍","always":true}}
 ---
 
 # web_search
