@@ -259,32 +259,58 @@ const query = process.argv[2] || '';
 if (!query) { console.error('Erro: termo de busca obrigatório.'); process.exit(1); }
 
 const encoded = encodeURIComponent(query);
-const path = `/?q=${encoded}&format=json`;
+// api.duckduckgo.com = Instant Answer API (JSON); duckduckgo.com não retorna JSON
+const path = `/?q=${encoded}&format=json&no_html=1&skip_disambig=1`;
 
 const req = https.request({
-  hostname: 'duckduckgo.com',
+  hostname: 'api.duckduckgo.com',
   path,
   method: 'GET',
-  headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ArtemisiaBrowser/1.0)' },
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
+    'Accept': 'application/json',
+  },
 }, (res) => {
   let data = '';
   res.on('data', chunk => data += chunk);
   res.on('end', () => {
     try {
       const json = JSON.parse(data);
-      const results = (json.Results || []).slice(0, 5);
-      if (results.length > 0) {
-        console.log(`Resultados para "${query}":\n`);
-        results.forEach((r, i) => {
-          console.log(`${i + 1}. ${r.Text || r.Result || ''}`);
-          if (r.FirstURL) console.log(`   ${r.FirstURL}`);
-          console.log('');
+      const output = [];
+
+      // AbstractText: resposta direta (Wikipedia etc.)
+      if (json.AbstractText) {
+        output.push(`${json.AbstractText}`);
+        if (json.AbstractURL) output.push(`Fonte: ${json.AbstractURL}`);
+        output.push('');
+      }
+
+      // Results: links diretos
+      (json.Results || []).slice(0, 3).forEach((r, i) => {
+        if (r.Text || r.FirstURL) {
+          output.push(`${i + 1}. ${r.Text || ''}`);
+          if (r.FirstURL) output.push(`   ${r.FirstURL}`);
+          output.push('');
+        }
+      });
+
+      // RelatedTopics: tópicos relacionados (mais comuns para buscas gerais)
+      if (output.length === 0) {
+        const topics = (json.RelatedTopics || [])
+          .filter(r => r.Text && r.FirstURL)
+          .slice(0, 5);
+        topics.forEach((r, i) => {
+          output.push(`${i + 1}. ${r.Text}`);
+          output.push(`   ${r.FirstURL}`);
+          output.push('');
         });
-      } else if (json.AbstractText) {
-        console.log(json.AbstractText);
-        if (json.AbstractURL) console.log(`Fonte: ${json.AbstractURL}`);
+      }
+
+      if (output.length > 0) {
+        console.log(`Resultados DuckDuckGo para "${query}":\n`);
+        console.log(output.join('\n'));
       } else {
-        console.log(`Nenhum resultado encontrado para "${query}"`);
+        console.log(`Nenhum resultado encontrado para "${query}". Tente termos mais específicos ou em inglês.`);
       }
     } catch (e) { console.error('Erro ao processar resposta:', e.message); process.exit(1); }
   });
